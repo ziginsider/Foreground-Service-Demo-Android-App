@@ -1,8 +1,6 @@
 package com.example.foregroundservice
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
+import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -24,6 +22,7 @@ class ForegroundService : Service() {
             .setGroupSummary(false)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(getPendingIntent())
             .setSilent(true)
             .setSmallIcon(R.drawable.ic_baseline_access_alarm_24)
     }
@@ -132,6 +131,12 @@ class ForegroundService : Service() {
                 notificationManager?.cancel(NOTIFICATION_ID)
             }
         }
+    }
+
+    private fun getPendingIntent(): PendingIntent? {
+        val resultIntent = Intent(this, MainActivity::class.java)
+        resultIntent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+        return PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_ONE_SHOT)
     }
 
     private companion object {
