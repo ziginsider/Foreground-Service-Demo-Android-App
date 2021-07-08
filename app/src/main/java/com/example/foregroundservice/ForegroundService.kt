@@ -1,19 +1,22 @@
 package com.example.foregroundservice
 
-import android.app.*
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.CountDownTimer
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.*
 
 class ForegroundService : Service() {
 
     private var isServiceStarted = false
     private var notificationManager: NotificationManager? = null
-    private var timer: CountDownTimer? = null
+    private var job: Job? = null
 
     private val builder by lazy {
         NotificationCompat.Builder(this, CHANNEL_ID)
@@ -45,15 +48,15 @@ class ForegroundService : Service() {
     private fun processCommand(intent: Intent?) {
         when (intent?.extras?.getString(COMMAND_ID) ?: INVALID) {
             COMMAND_START -> {
-                val time = intent?.extras?.getLong(STARTED_TIMER_TIME_MS) ?: return
-                commandStart(time)
+                val startTime = intent?.extras?.getLong(STARTED_TIMER_TIME_MS) ?: return
+                commandStart(startTime)
             }
             COMMAND_STOP -> commandStop()
             INVALID -> return
         }
     }
 
-    private fun commandStart(time: Long) {
+    private fun commandStart(startTime: Long) {
         if (isServiceStarted) {
             return
         }
@@ -61,12 +64,23 @@ class ForegroundService : Service() {
         try {
             moveToStartedState()
             startForegroundAndShowNotification()
-
-            timer?.cancel()
-            timer = getCountDownTimer(time)
-            timer?.start()
+            continueTimer(startTime)
         } finally {
             isServiceStarted = true
+        }
+    }
+
+    private fun continueTimer(startTime: Long) {
+        job = GlobalScope.launch(Dispatchers.Main) {
+            while (true) {
+                notificationManager?.notify(
+                    NOTIFICATION_ID,
+                    getNotification(
+                        (System.currentTimeMillis() - startTime).displayTime().dropLast(3)
+                    )
+                )
+                delay(INTERVAL)
+            }
         }
     }
 
@@ -76,7 +90,7 @@ class ForegroundService : Service() {
         }
         Log.i("TAG", "commandStop()")
         try {
-            timer?.cancel()
+            job?.cancel()
             stopForeground(true)
             stopSelf()
         } finally {
@@ -114,25 +128,6 @@ class ForegroundService : Service() {
         }
     }
 
-    private fun getCountDownTimer(baseMillis: Long): CountDownTimer {
-        return object : CountDownTimer(PERIOD, INTERVAL) {
-
-            private var currentMillis = baseMillis
-
-            override fun onTick(millisUntilFinished: Long) {
-                currentMillis += INTERVAL
-                notificationManager?.notify(
-                    NOTIFICATION_ID,
-                    getNotification(currentMillis.displayTime().dropLast(3))
-                )
-            }
-
-            override fun onFinish() {
-                notificationManager?.cancel(NOTIFICATION_ID)
-            }
-        }
-    }
-
     private fun getPendingIntent(): PendingIntent? {
         val resultIntent = Intent(this, MainActivity::class.java)
         resultIntent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
@@ -144,6 +139,5 @@ class ForegroundService : Service() {
         private const val CHANNEL_ID = "Channel_ID"
         private const val NOTIFICATION_ID = 777
         private const val INTERVAL = 1000L
-        private const val PERIOD = 1000L * 60L * 60L * 24L // Day
     }
 }

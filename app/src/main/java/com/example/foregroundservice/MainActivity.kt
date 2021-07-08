@@ -1,20 +1,20 @@
 package com.example.foregroundservice
 
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.os.CountDownTimer
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.example.foregroundservice.databinding.ActivityMainBinding
+import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity(), LifecycleObserver {
 
     private lateinit var binding: ActivityMainBinding
-    private var timer: CountDownTimer? = null
-    private var currentMs = 0L
+    private var startTime = 0L
+    private var job: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,29 +23,26 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        timer = getCountDownTimer()
-        timer?.start()
-    }
+        startTime = System.currentTimeMillis()
 
-    private fun getCountDownTimer(): CountDownTimer {
-        return object : CountDownTimer(PERIOD, INTERVAL) {
-
-            override fun onTick(millisUntilFinished: Long) {
-                currentMs += INTERVAL
-                binding.timerView.text = currentMs.displayTime()
-            }
-
-            override fun onFinish() {
-                binding.timerView.text = currentMs.displayTime()
+        job = GlobalScope.launch(Dispatchers.Main) {
+            while (true) {
+                binding.timerView.text = (System.currentTimeMillis() - startTime).displayTime()
+                delay(INTERVAL)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        job?.cancel()
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun onAppBackgrounded() {
         val startIntent = Intent(this, ForegroundService::class.java)
         startIntent.putExtra(COMMAND_ID, COMMAND_START)
-        startIntent.putExtra(STARTED_TIMER_TIME_MS, currentMs)
+        startIntent.putExtra(STARTED_TIMER_TIME_MS, startTime)
         startService(startIntent)
     }
 
@@ -59,6 +56,5 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
     private companion object {
 
         private const val INTERVAL = 10L
-        private const val PERIOD = 1000L * 60L * 60L * 24L // Day
     }
 }
