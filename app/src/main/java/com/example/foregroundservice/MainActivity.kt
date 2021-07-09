@@ -3,10 +3,7 @@ package com.example.foregroundservice
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
-import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.*
 import com.example.foregroundservice.databinding.ActivityMainBinding
 import kotlinx.coroutines.*
 
@@ -14,7 +11,6 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
 
     private lateinit var binding: ActivityMainBinding
     private var startTime = 0L
-    private var job: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,17 +21,12 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
 
         startTime = System.currentTimeMillis()
 
-        job = GlobalScope.launch(Dispatchers.Main) {
+        lifecycleScope.launch(Dispatchers.Main) {
             while (true) {
                 binding.timerView.text = (System.currentTimeMillis() - startTime).displayTime()
                 delay(INTERVAL)
             }
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        job?.cancel()
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
